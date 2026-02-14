@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Para Lilibeth - El Sistema Saturno</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050508; font-family: 'Arial', sans-serif; }
+        canvas { display: block; }
+        
+        #ui-overlay {
+            position: absolute;
+            top: 30px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .titulo {
+            font-size: 2.2rem;
+            letter-spacing: 5px;
+            text-shadow: 0 0 20px #ff1493;
+            margin: 0;
+            color: #fff;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        button {
+            padding: 15px 40px;
+            background: rgba(0,0,0,0.7);
+            border: 2px solid #ff69b4;
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: 0.5s;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        button:hover { 
+            background: #ff69b4;
+            color: black;
+            box-shadow: 0 0 30px #ff69b4;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-overlay">
+        <h1 class="titulo">Mi Negra</h1>
+        <p style="color: #ff69b4; letter-spacing: 2px; font-weight: bold;">MI REINA, MI PLANETA</p>
+    </div>
+
+    <div id="controls">
+        <button id="playButton">ENTRAR EN ÓRBITA ✨</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let scene, camera, renderer, controls, mainGroup, saturnMesh, textGroup, stars;
+        let ringSystems = [];
+        const clock = new THREE.Clock();
+
+        const frases = [
+            "Te amo Odiosa", "Mi Reina", "Eres mi todo", 
+            "Amor infinito", "Soy feliz a tu lado", 
+            "Gracias por existir", "Me encantas", "Mi negra hermosa", 
+            "Mi Guapetona", "Mi Princesita", "Te amo", "Mi prioridad", 
+            "Mi vida", "Mi gran amor"
+        ];
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x050508, 0.001);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 50, 100);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            // Mejora de renderizado
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            document.body.appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            createStarfield();
+
+            mainGroup = new THREE.Group();
+            mainGroup.rotation.x = 0.45; 
+            scene.add(mainGroup);
+
+            // Planeta Saturno
+            const saturnGeo = new THREE.SphereGeometry(12, 64, 64);
+            const saturnTexture = createSaturnTexture();
+            const saturnMat = new THREE.MeshStandardMaterial({
+                map: saturnTexture,
+                roughness: 0.8,
+                metalness: 0.1
+            });
+            saturnMesh = new THREE.Mesh(saturnGeo, saturnMat);
+            mainGroup.add(saturnMesh);
+
+            // Brillo corregido (sin bordes negros)
+            const glowMat = new THREE.SpriteMaterial({
+                map: createGlowTexture(),
+                color: 0xff69b4,
+                transparent: true,
+                opacity: 0.6,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false // Crucial para que no oculte los anillos
+            });
+            const glow = new THREE.Sprite(glowMat);
+            glow.scale.set(35, 35, 1);
+            saturnMesh.add(glow);
+
+            // Anillos
+            const bandas = [
+                { rI: 16, rE: 20, count: 40000, op: 0.4, color: 0xffb6c1 }, 
+                { rI: 21, rE: 28, count: 70000, op: 0.7, color: 0xff69b4 }, 
+                { rI: 29, rE: 35, count: 40000, op: 0.5, color: 0xdb7093 } 
+            ];
+
+            bandas.forEach(banda => {
+                const geo = new THREE.BufferGeometry();
+                const pos = new Float32Array(banda.count * 3);
+                const cols = new Float32Array(banda.count * 3);
+                const colorObj = new THREE.Color(banda.color);
+
+                for(let i = 0; i < banda.count; i++) {
+                    const i3 = i * 3;
+                    const r = banda.rI + Math.random() * (banda.rE - banda.rI);
+                    const theta = Math.random() * Math.PI * 2;
+                    pos[i3] = Math.cos(theta) * r;
+                    pos[i3+1] = (Math.random() - 0.5) * 0.15;
+                    pos[i3+2] = Math.sin(theta) * r;
+                    
+                    cols[i3] = colorObj.r;
+                    cols[i3+1] = colorObj.g;
+                    cols[i3+2] = colorObj.b;
+                }
+                geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+                
+                const mat = new THREE.PointsMaterial({
+                    size: 0.05,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: banda.op,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+                const points = new THREE.Points(geo, mat);
+                mainGroup.add(points);
+                ringSystems.push(points);
+            });
+
+            // Frases corregidas
+            textGroup = new THREE.Group();
+            frases.forEach((text, i) => {
+                const sprite = createTextSprite(text);
+                const angle = (i / frases.length) * Math.PI * 2;
+                const radius = 22 + (Math.random() * 10);
+                const initialY = (Math.random() - 0.5) * 5;
+
+                sprite.position.set(Math.cos(angle) * radius, initialY, Math.sin(angle) * radius);
+                sprite.userData = {
+                    angle: angle,
+                    radius: radius,
+                    baseY: initialY,
+                    floatSpeed: 0.3 + Math.random() * 0.4,
+                    orbitSpeed: 0.02 + Math.random() * 0.03
+                };
+                textGroup.add(sprite);
+            });
+            mainGroup.add(textGroup);
+
+            // Luces
+            const sun = new THREE.DirectionalLight(0xffffff, 2.5);
+            sun.position.set(20, 30, 20);
+            scene.add(sun);
+            scene.add(new THREE.AmbientLight(0x202020));
+
+            // Audio
+            document.getElementById('playButton').addEventListener('click', () => {
+                const listener = new THREE.AudioListener();
+                camera.add(listener);
+                const sound = new THREE.Audio(listener);
+                const audioLoader = new THREE.AudioLoader();
+                
+                audioLoader.load('Amar como Tú.mp3', (buffer) => {
+                    sound.setBuffer(buffer);
+                    sound.setLoop(true);
+                    sound.setVolume(0.5);
+                    sound.play();
+                }, undefined, (err) => {
+                    console.log("Audio no encontrado, pero la escena sigue.");
+                });
+                
+                document.getElementById('controls').style.display = 'none';
+            });
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createSaturnTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fdf5e6';
+            ctx.fillRect(0, 0, 512, 256);
+            for(let i = 0; i < 256; i++) {
+                const noise = Math.sin(i * 0.1) * 15;
+                ctx.fillStyle = i % 30 < 15 ? `rgb(${230+noise}, ${180+noise}, ${190+noise})` : `rgb(255, 220, 235)`;
+                ctx.fillRect(0, i, 512, 1);
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createTextSprite(text) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 512; canvas.height = 128;
+            
+            // Fondo transparente explícito
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.font = 'bold 40px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Sombra para legibilidad
+            ctx.shadowColor = 'rgba(255, 20, 147, 0.8)';
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = 'white';
+            ctx.fillText(text, 256, 64);
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ 
+                map: tex, 
+                transparent: true,
+                alphaTest: 0.1, // Elimina los bordes oscuros de los píxeles casi transparentes
+                depthWrite: false
+            });
+            const sprite = new THREE.Sprite(mat);
+            sprite.scale.set(12, 3, 1);
+            return sprite;
+        }
+
+        function createGlowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            grad.addColorStop(0, 'rgba(255,105,180,1)');
+            grad.addColorStop(0.3, 'rgba(255,20,147,0.3)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad; 
+            ctx.fillRect(0, 0, 128, 128);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createStarfield() {
+            const starGeo = new THREE.BufferGeometry();
+            const starCount = 5000;
+            const pos = new Float32Array(starCount * 3);
+            for(let i = 0; i < starCount * 3; i++) {
+                pos[i] = (Math.random() - 0.5) * 1500;
+            }
+            starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.6, transparent: true, opacity: 0.8 });
+            stars = new THREE.Points(starGeo, starMat);
+            scene.add(stars);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            if(saturnMesh) saturnMesh.rotation.y = time * 0.15;
+            if(stars) stars.rotation.y = time * 0.005;
+
+            ringSystems.forEach((ring, i) => {
+                ring.rotation.y = time * (0.03 + i * 0.01);
+            });
+
+            textGroup.children.forEach((sprite) => {
+                const data = sprite.userData;
+                const currentAngle = data.angle + (time * data.orbitSpeed);
+                sprite.position.x = Math.cos(currentAngle) * data.radius;
+                sprite.position.z = Math.sin(currentAngle) * data.radius;
+                sprite.position.y = data.baseY + Math.sin(time * data.floatSpeed) * 1.5;
+            });
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
